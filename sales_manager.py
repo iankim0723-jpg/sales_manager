@@ -27,7 +27,6 @@ st.markdown("""
         background-color: #D4AF37 !important;
         color: #000000 !important;
         font-weight: bold;
-        border-radius: 5px;
         width: 100%;
     }
     .stAlert {
@@ -40,15 +39,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# [3] AI 분석 함수 (최신 모델 강제 고정)
+# [3] AI 분석 함수 (Pro 모델 사용)
 # ==========================================
-def analyze_image_final(image, prompt_user):
-    # API 키 설정
+def analyze_image_pro(image, prompt_user):
     genai.configure(api_key=FIXED_API_KEY)
     
-    # [수정] 복잡한 연결 시도 다 빼고, 딱 하나만 지정
-    # requirements.txt가 정상이라면 이 모델은 무조건 있습니다.
-    target_model = "gemini-1.5-flash"
+    # [전략 변경] Flash가 자꾸 404가 뜨므로, 'Pro' 모델로 변경
+    # Pro 모델은 더 무겁지만 성능이 좋고 인식이 잘 됩니다.
+    target_model = 'gemini-1.5-pro' 
     
     try:
         model = genai.GenerativeModel(target_model)
@@ -56,30 +54,29 @@ def analyze_image_final(image, prompt_user):
         system_prompt = """
         당신은 샌드위치 판넬 발주서 분석 전문가입니다.
         규칙:
-        1. 취소선(가로줄) 항목은 절대 추출하지 마세요.
-        2. 품목명, 규격(숫자), 수량, 비고를 추출하세요.
-        3. 오직 JSON 리스트 형식으로만 답하세요.
+        1. 취소선(가로줄) 항목은 절대 추출하지 마십시오.
+        2. 품목명, 규격(숫자만), 수량, 비고를 추출하십시오.
+        3. 결과는 오직 JSON 리스트 형식으로만 출력하십시오.
         """
         
         if prompt_user:
             system_prompt += f"\n(메모: {prompt_user})"
 
-        with st.spinner(f"AI({target_model})가 분석 중입니다..."):
+        with st.spinner(f"AI({target_model})가 정밀 분석 중입니다..."):
             response = model.generate_content([system_prompt, image])
             text = response.text
             
-            # JSON 추출 로직
             start = text.find('[')
             end = text.rfind(']') + 1
             if start != -1 and end != -1:
                 return eval(text[start:end])
-            else:
-                return []
-                
+            return []
+            
     except Exception as e:
-        # 만약 여기서 에러가 나면 진짜 원인을 보여줌 (404가 아님)
-        st.error(f"⚠️ 분석 실패 원인: {e}")
-        st.info(f"현재 설치된 AI 도구 버전: {genai.__version__}") 
+        st.error(f"🚨 분석 실패: {e}")
+        # 여기에 버전 정보를 띄워서 원인을 파악합니다.
+        st.warning(f"현재 시스템의 AI 도구 버전: {genai.__version__}")
+        st.info("만약 버전이 0.8.3 미만이라면 requirements.txt 업데이트가 아직 반영되지 않은 것입니다.")
         return []
 
 def reset_session():
@@ -103,13 +100,15 @@ if not st.session_state['logged_in']:
             if pw == "0723":
                 st.session_state['logged_in'] = True
                 st.rerun()
-            else:
-                st.error("비밀번호 틀림")
     st.stop()
 
 with st.sidebar:
     st.title("WOORI STEEL")
     st.markdown("---")
+    
+    # [진단 기능] 여기에 현재 버전이 표시됩니다.
+    st.caption(f"🔧 시스템 버전: v{genai.__version__}")
+    
     menu = st.radio("메뉴", ["1. 수주/발주 관리 (AI)", "2. 생산 현황"])
     st.markdown("---")
     if st.button("🔄 작업 초기화"):
@@ -136,7 +135,8 @@ if menu == "1. 수주/발주 관리 (AI)":
         if st.button("🚀 AI 분석 실행", type="primary"):
             if uploaded_file:
                 img = Image.open(uploaded_file)
-                result = analyze_image_final(img, memo)
+                # Pro 모델 함수 호출
+                result = analyze_image_pro(img, memo)
                 if result:
                     st.session_state['ai_result'] = result
                     st.session_state['analysis_done'] = True
