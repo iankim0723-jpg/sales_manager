@@ -1,8 +1,25 @@
 import streamlit as st
-import pandas as pd
-import google.generativeai as genai
-from PIL import Image
+import subprocess
+import sys
 import time
+import pandas as pd
+from PIL import Image
+
+# ==========================================
+# [0] 🚨 라이브러리 강제 설치 (여기가 핵심!)
+# ==========================================
+# 서버가 requirements.txt를 무시해도, 여기서 강제로 최신 버전을 깝니다.
+try:
+    import google.generativeai as genai
+    # 버전이 너무 낮으면 강제 업데이트
+    if genai.__version__ < "0.8.3":
+        st.toast("🔧 AI 도구 버전이 낮아 강제 업데이트 중...", icon="🔄")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "google-generativeai"])
+        import google.generativeai as genai
+except ImportError:
+    st.toast("🔧 AI 도구를 설치하고 있습니다...", icon="⬇️")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "google-generativeai"])
+    import google.generativeai as genai
 
 # ==========================================
 # [1] 기본 설정
@@ -39,63 +56,40 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# [3] AI 자동 연결 함수 (여기가 핵심!)
+# [3] AI 분석 함수
 # ==========================================
-def analyze_image_auto(image, prompt_user):
+def analyze_image_final(image, prompt_user):
     genai.configure(api_key=FIXED_API_KEY)
     
-    # [전략] 서버가 무슨 버전을 쓰는지 모르니, 
-    # 다 준비해놓고 될 때까지 순서대로 시도합니다.
-    model_candidates = [
-        "gemini-1.5-flash",       # 1순위: 최신 (빠름)
-        "gemini-1.5-flash-001",   # 1.5버전 다른 이름
-        "gemini-1.5-flash-latest",# 1.5버전 다른 이름 2
-        "gemini-1.5-pro",         # 2순위: 고성능
-        "gemini-1.5-pro-001",     # 2순위 다른 이름
-        "gemini-1.5-pro-latest",  # 2순위 다른 이름 2
-        "gemini-pro-vision",      # 3순위: 구형 (호환성 최강)
-    ]
+    # [수정] 이제 강제 설치가 되었으므로 무조건 'flash' 모델을 씁니다.
+    target_model = "gemini-1.5-flash"
     
-    system_prompt = """
-    당신은 샌드위치 판넬 발주서 분석 전문가입니다.
-    규칙:
-    1. 취소선(가로줄) 항목은 절대 추출하지 마십시오.
-    2. 품목명, 규격(숫자만), 수량, 비고를 추출하십시오.
-    3. 결과는 오직 JSON 리스트 형식으로만 출력하십시오.
-    """
-    if prompt_user:
-        system_prompt += f"\n(메모: {prompt_user})"
+    try:
+        model = genai.GenerativeModel(target_model)
+        
+        system_prompt = """
+        당신은 샌드위치 판넬 발주서 분석 전문가입니다.
+        규칙:
+        1. 취소선(가로줄) 항목은 절대 추출하지 마십시오.
+        2. 품목명, 규격(숫자만), 수량, 비고를 추출하십시오.
+        3. 결과는 오직 JSON 리스트 형식으로만 출력하십시오.
+        """
+        if prompt_user:
+            system_prompt += f"\n(메모: {prompt_user})"
 
-    last_error = ""
-    
-    # 후보 모델들을 하나씩 순회하며 시도
-    for model_name in model_candidates:
-        try:
-            # 모델 생성 시도
-            model = genai.GenerativeModel(model_name)
+        with st.spinner(f"AI({target_model})가 분석 중입니다..."):
+            response = model.generate_content([system_prompt, image])
+            text = response.text
+            start = text.find('[')
+            end = text.rfind(']') + 1
+            if start != -1 and end != -1:
+                return eval(text[start:end])
+            return []
             
-            # 실제 호출 시도 (여기서 에러 안 나면 성공)
-            with st.spinner(f"AI 모델({model_name})로 접속 시도 중..."):
-                response = model.generate_content([system_prompt, image])
-                text = response.text
-                
-                # 성공하면 즉시 결과 처리 후 리턴
-                start = text.find('[')
-                end = text.rfind(']') + 1
-                if start != -1 and end != -1:
-                    st.toast(f"✅ {model_name} 모델로 연결 성공!", icon="🎉") # 성공 알림
-                    return eval(text[start:end])
-                
-        except Exception as e:
-            # 실패하면 다음 모델로 넘어감
-            last_error = str(e)
-            continue
-            
-    # 모든 모델이 다 실패했을 때만 에러 출력
-    st.error("🚨 모든 AI 모델 연결에 실패했습니다.")
-    st.error(f"마지막 오류 메시지: {last_error}")
-    st.warning("팁: requirements.txt 가 업데이트 되지 않은 것 같습니다. 잠시 후 다시 시도해보세요.")
-    return []
+    except Exception as e:
+        st.error(f"분석 실패: {e}")
+        st.warning(f"현재 설치된 버전: {genai.__version__}")
+        return []
 
 def reset_session():
     for key in list(st.session_state.keys()):
@@ -124,9 +118,12 @@ with st.sidebar:
     st.title("WOORI STEEL")
     st.markdown("---")
     
-    # 현재 라이브러리 버전 확인용 (디버깅)
-    st.caption(f"🔧 라이브러리 버전: {genai.__version__}")
-    
+    # 버전 확인 (이제 무조건 0.8.3 이상이 뜹니다)
+    try:
+        st.caption(f"🔧 AI 도구 버전: v{genai.__version__}")
+    except:
+        st.caption("🔧 AI 도구 설치 중...")
+        
     menu = st.radio("메뉴", ["1. 수주/발주 관리 (AI)", "2. 생산 현황"])
     st.markdown("---")
     if st.button("🔄 작업 초기화"):
@@ -153,8 +150,7 @@ if menu == "1. 수주/발주 관리 (AI)":
         if st.button("🚀 AI 분석 실행", type="primary"):
             if uploaded_file:
                 img = Image.open(uploaded_file)
-                # 자동 연결 함수 호출
-                result = analyze_image_auto(img, memo)
+                result = analyze_image_final(img, memo)
                 if result:
                     st.session_state['ai_result'] = result
                     st.session_state['analysis_done'] = True
