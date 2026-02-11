@@ -3,6 +3,7 @@ import pandas as pd
 import google.generativeai as genai
 from PIL import Image
 import time
+from datetime import datetime # 시간 도구 추가
 
 # [1] 필수 설정
 st.set_page_config(page_title="WOORI STEEL 영업관리", layout="wide")
@@ -22,13 +23,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# [3] AI 분석 함수 (최신 호출 규격 적용)
+# [3] AI 분석 함수
 def analyze_image_final(image, prompt_user):
     try:
-        # API 설정
         genai.configure(api_key=FIXED_API_KEY)
-        
-        # 최신 모델 생성 방식 (모델 이름을 리스트가 아닌 단일 문자열로 전달)
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         system_prompt = """
@@ -36,29 +34,20 @@ def analyze_image_final(image, prompt_user):
         규칙: 
         1. 취소선(가로줄) 항목은 절대 추출하지 마십시오. 
         2. 품목명, 규격, 수량, 비고를 추출하십시오. 
-        3. 결과는 반드시 JSON 리스트로만 응답하십시오. (예: [{"품목명": "EPS", "규격": 3000, "수량": 10, "비고": ""}])
+        3. 결과는 반드시 JSON 리스트로만 응답하십시오.
         """
-        if prompt_user: 
-            system_prompt += f"\n(참고 메모: {prompt_user})"
+        if prompt_user: system_prompt += f"\n(참고 메모: {prompt_user})"
 
         with st.spinner("AI가 주문서를 판독하고 있습니다..."):
-            # 이미지 데이터와 프롬프트를 함께 전송
             response = model.generate_content([system_prompt, image])
-            
-            # 응답 텍스트 추출 및 정제
             text_res = response.text
             start = text_res.find('[')
             end = text_res.rfind(']') + 1
-            
             if start != -1 and end != -1:
                 return eval(text_res[start:end])
-            else:
-                st.warning("데이터 추출 실패: 사진이 흐리거나 양식이 다를 수 있습니다.")
-                return []
-                
+            return []
     except Exception as e:
         st.error(f"분석 오류 발생: {e}")
-        st.info(f"현재 시스템 라이브러리 버전: {genai.__version__}")
         return []
 
 # [4] 화면 로직
@@ -82,13 +71,14 @@ with st.sidebar:
 
 if menu == "1. 수주/발주 관리 (AI)":
     st.header("📝 AI 수주서 판독 시스템")
-    st.error("🚨 [주의] AI 결과는 보조용입니다. 담당자는 반드시 직접 2차 검수하셔야 합니다.")
+    # 대표님이 강조하신 경고 문구
+    st.error("🚨 [필독] AI는 업무 보조 도구입니다. 인식 결과에 오류가 있을 수 있으므로, 담당자는 반드시 '2차 검수'를 진행하셔야 합니다.")
     
     col1, col2 = st.columns([1, 1.5], gap="large")
     with col1:
         st.subheader("1. 주문서 업로드")
         client = st.text_input("거래처/현장명")
-        uploaded_file = st.file_uploader("📷 사진 선택 (최대 10장 지원 예정)", type=['png', 'jpg', 'jpeg'])
+        uploaded_file = st.file_uploader("📷 사진 선택", type=['png', 'jpg', 'jpeg'])
         memo = st.text_area("추가 요청 사항")
         if st.button("🚀 분석 실행", type="primary") and uploaded_file:
             st.session_state['ai_result'] = analyze_image_final(Image.open(uploaded_file), memo)
@@ -98,11 +88,17 @@ if menu == "1. 수주/발주 관리 (AI)":
         st.subheader("2. 검수 및 다운로드")
         if st.session_state.get('analysis_done'):
             df = pd.DataFrame(st.session_state['ai_result'])
-            # 필수 열 자동 생성
             for col in ['품목명', '규격', '수량', '단가', '비고']:
                 if col not in df.columns: df[col] = ""
             
             edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
-            st.download_button("💾 엑셀(CSV) 저장", edited_df.to_csv(index=False).encode('utf-8-sig'), f"order_{datetime.now().strftime('%m%d')}.csv")
+            # 에러가 났던 저장 버튼 부분 (이제 정상 작동함)
+            st.download_button(
+                "💾 엑셀(CSV) 저장", 
+                edited_df.to_csv(index=False).encode('utf-8-sig'), 
+                f"order_{datetime.now().strftime('%m%d')}.csv"
+            )
         else:
             st.info("왼쪽에서 사진을 업로드하고 분석을 시작하세요.")
+else:
+    st.info("준비 중입니다.")
