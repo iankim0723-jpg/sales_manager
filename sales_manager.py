@@ -3,130 +3,136 @@ import pandas as pd
 import time
 from datetime import datetime
 
-# 1. 페이지 설정 (최상단 고정)
-st.set_page_config(page_title="WOORI STEEL 영업관리 시스템", layout="wide", initial_sidebar_state="expanded")
+# 1. 페이지 설정
+st.set_page_config(page_title="WOORI STEEL 영업관리", layout="wide")
 
-# 2. 스타일 설정 (다크모드 가독성 & 가시성 100% 확보)
+# 2. 고강도 시각화 CSS (가독성 문제 해결 핵심)
 st.markdown("""
     <style>
-    /* 전체 배경 및 글자색 */
-    .stApp { background-color: #1E1E1E !important; }
-    
-    /* 모든 텍스트 요소를 흰색으로 강제 */
-    .stApp, .stMarkdown, p, label, .stSelectbox, .stTextInput, .stTextArea, .stButton, .stMetric, [data-testid="stHeader"] {
-        color: #FFFFFF !important;
-    }
-    
-    /* 제목(Heading) 색상 - 금색 */
-    h1, h2, h3, h4, h5, h6 { color: #D4AF37 !important; }
+    /* 전체 배경 */
+    .stApp { background-color: #121212 !important; }
 
-    /* 사이드바 스타일 */
-    [data-testid="stSidebar"] { background-color: #2B2B2B !important; border-right: 1px solid #444; }
-    [data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {
-        color: #FFFFFF !important;
+    /* [좌측 사이드바] 글자색과 배경색 대비 강화 */
+    [data-testid="stSidebar"] {
+        background-color: #1E1E1E !important;
+        border-right: 2px solid #D4AF37 !important;
     }
-
-    /* 입력창(Input) 가시성 확보: 배경은 어둡게, 테두리는 밝게 */
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important; /* 모든 글자 흰색 고정 */
+        font-weight: 500;
+    }
+    /* 사이드바 라디오 버튼(메뉴) 선택 시 강조 */
+    div[data-testid="stSidebarUserContent"] .st-emotion-cache-17l69e0 {
         background-color: #333333 !important;
-        color: white !important;
-        border: 1px solid #D4AF37 !important;
+        border-radius: 10px;
+        padding: 5px;
     }
 
-    /* 데이터프레임/에디터 글자색 강제 (흰색) */
-    div[data-testid="stDataEditor"] div, .stDataFrame div {
-        color: white !important;
+    /* [메인 화면] 템플릿 구분을 위한 박스 디자인 */
+    div.stColumn > div {
+        background-color: #1E1E1E;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #333;
+        margin-bottom: 20px;
+    }
+
+    /* 제목 및 강조 텍스트 */
+    h1, h2, h3 { color: #D4AF37 !important; border-bottom: 1px solid #D4AF37; padding-bottom: 10px; }
+    
+    /* 입력창 및 에디터 가시성 */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        background-color: #2D2D2D !important;
+        color: #00FF00 !important; /* 입력 글자는 녹색으로 눈에 띄게 */
+        border: 1px solid #444 !important;
+    }
+    
+    /* 데이터프레임 헤더와 본문 구분 */
+    .stDataFrame {
+        border: 1px solid #D4AF37 !important;
     }
 
     /* 버튼 스타일 */
     .stButton>button {
+        width: 100%;
         background-color: #D4AF37 !important;
-        color: #1E1E1E !important;
+        color: #000000 !important;
         font-weight: bold;
+        border-radius: 8px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# ------------------------------------------
-# [함수 정의] (에러 방지를 위해 메인 로직 전 선언)
-# ------------------------------------------
-def calculate_price(mat, thick):
-    base_eps, base_gw, base_ure = 11500, 13800, 24500
-    gap_eps, gap_gw, gap_ure = 800, 2400, 4000
-    
-    price = 0
-    if mat == "EPS": price = base_eps + (int(thick/25)*gap_eps)
-    elif mat == "GW": price = base_gw + (int(thick/25)*gap_gw)
-    elif mat == "URE": price = base_ure + (int(thick/25)*gap_ure)
-    return price
-
-# ------------------------------------------
-# [로그인 로직]
-# ------------------------------------------
+# --- 로그인 로직 ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.title("🔒 WOORI STEEL 접속")
-    col1, _ = st.columns([1, 2])
-    with col1:
-        pw = st.text_input("비밀번호 (0723)", type="password")
-        if st.button("로그인"):
+    st.title("🔒 WOORI STEEL SYSTEM")
+    with st.container():
+        pw = st.text_input("비밀번호 입력", type="password")
+        if st.button("접속하기"):
             if pw == "0723":
                 st.session_state['logged_in'] = True
                 st.rerun()
             else:
-                st.error("비밀번호가 틀렸습니다.")
+                st.error("접근 권한이 없습니다.")
     st.stop()
 
-# ------------------------------------------
-# [사이드바 메뉴]
-# ------------------------------------------
+# --- 사이드바 메뉴 ---
 with st.sidebar:
-    st.title("WOORI STEEL\nManager System")
-    st.markdown("---")
-    menu = st.radio("업무 선택", [
+    st.image("https://via.placeholder.com/150x50/D4AF37/000000?text=WOORI+STEEL", use_container_width=True)
+    st.markdown("### 📋 핵심 업무 메뉴")
+    menu = st.radio("", [
         "1. 수주/발주 관리 (AI)", 
-        "2. 생산 관리", 
-        "3. 재고 관리", 
-        "4. 출고/배차 관리",
-        "5. 수금/미수 관리"
+        "2. 생산 현황", 
+        "3. 재고 조회", 
+        "4. 출고/배차",
+        "5. 미수금 관리"
     ])
     st.markdown("---")
-    # datetime 에러 방지를 위해 변수에 미리 담기
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    st.info(f"접속자: 관리자\n날짜: {current_date}")
+    st.write(f"📅 **일자:** {datetime.now().strftime('%Y-%m-%d')}")
     if st.button("로그아웃"):
         st.session_state['logged_in'] = False
         st.rerun()
 
-# ------------------------------------------
-# [메인 화면]
-# ------------------------------------------
+# --- 메인 컨텐츠 ---
 if menu == "1. 수주/발주 관리 (AI)":
-    st.header("📝 AI 수주 등록")
-    st.write("주문서 텍스트나 파일을 올리면 분석을 시작합니다.")
+    st.header("📝 AI 수주서 변환 자동화")
     
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        client_name = st.text_input("거래처명", "주식회사 대성플러스")
-        raw_text = st.text_area("주문 내용 입력", height=150)
-        btn_analyze = st.button("🚀 AI 분석 실행")
+    col1, col2 = st.columns([1, 1.5], gap="large")
+    
+    with col1:
+        st.subheader("📥 데이터 입력")
+        client = st.text_input("거래처명", placeholder="거래처를 입력하세요")
+        # 파일 업로드 양식 부활
+        img_file = st.file_uploader("📷 주문서 사진/파일 업로드", type=['png', 'jpg', 'jpeg', 'pdf', 'xlsx'])
+        raw_text = st.text_area("✍️ 수동 입력 (카톡 복사 등)", height=150)
+        
+        if st.button("🚀 데이터 분석 시작"):
+            with st.spinner("AI가 규격과 단가를 매칭하는 중..."):
+                time.sleep(1.5)
+                st.session_state['analysis_done'] = True
 
-    with c2:
-        if btn_analyze:
-            with st.spinner("분석 중..."):
-                time.sleep(1)
-                data = {
-                    '품목명': ['GW판넬 벽체 125T (48K)', '선홈통 (Gutter)'],
-                    '규격': [2.900, 3.000],
-                    '수량': [6, 20],
-                    '단가': [25500, 12000]
-                }
-                df = pd.DataFrame(data)
-                st.success("분석 완료!")
-                st.data_editor(df, use_container_width=True)
+    with col2:
+        st.subheader("📊 ERP 변환 결과")
+        if st.session_state.get('analysis_done'):
+            # 예시 데이터 (실제 업무 양식 반영)
+            df_example = pd.DataFrame({
+                '품목명': ['GW판넬 벽체 125T', 'EPS 지붕 100T', '스크류볼트'],
+                '규격(L)': [3500, 4200, 150],
+                '수량': [10, 25, 500],
+                '단가': [26500, 14500, 60],
+                '공급가액': [927500, 1522500, 30000]
+            })
+            st.success("✅ 분석 완료! 아래 표를 검토 후 다운로드하세요.")
+            edited_df = st.data_editor(df_example, use_container_width=True, num_rows="dynamic")
+            
+            st.markdown("---")
+            st.download_button("💾 이카운트 엑셀 양식 다운로드", data=edited_df.to_csv().encode('utf-8-sig'), file_name="order.csv")
+        else:
+            st.info("왼쪽에서 주문서를 업로드하거나 내용을 입력하면 분석 결과가 여기에 표시됩니다.")
 
 else:
-    st.header(f"{menu}")
-    st.write("상세 내용을 준비 중입니다.")
+    st.header(f"🏗️ {menu} 섹션")
+    st.info("해당 메뉴의 세부 기능은 현재 준비 중입니다.")
