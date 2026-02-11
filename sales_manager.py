@@ -18,37 +18,25 @@ FIXED_API_KEY = "AIzaSyAbUOeVMbAif18qz_5L2KaS2f6jFzfF0Yw"
 # ==========================================
 st.markdown("""
     <style>
-    /* 전체 배경 및 폰트 */
     .stApp { background-color: #121212 !important; color: #FFFFFF !important; }
-    
-    /* 사이드바 스타일 */
-    [data-testid="stSidebar"] { 
-        background-color: #1E1E1E !important; 
-        border-right: 2px solid #D4AF37 !important; 
-    }
+    [data-testid="stSidebar"] { background-color: #1E1E1E !important; border-right: 2px solid #D4AF37 !important; }
     [data-testid="stSidebar"] * { color: #FFFFFF !important; }
-    
-    /* 입력창 스타일 */
     .stTextInput>div>div>input, .stTextArea>div>div>textarea {
         background-color: #2D2D2D !important;
         color: #F1C40F !important; 
         border: 1px solid #555 !important;
     }
-    
-    /* 버튼 스타일 */
     .stButton>button {
         background-color: #D4AF37 !important;
         color: #000000 !important;
         font-weight: bold;
-        border-radius: 5px;
         width: 100%;
     }
-    
     /* [중요] 경고 문구 스타일 강조 */
     .stAlert {
-        background-color: #330000 !important; /* 짙은 빨강 배경 */
+        background-color: #330000 !important;
         border: 1px solid #FF0000 !important;
-        color: #FFCCCC !important; /* 연한 붉은 글씨 */
+        color: #FFCCCC !important;
         font-weight: bold;
     }
     </style>
@@ -69,11 +57,9 @@ def analyze_image(image, prompt_user):
     try:
         genai.configure(api_key=FIXED_API_KEY)
         
-        # 모델 버전 안전장치
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-        except:
-            model = genai.GenerativeModel('gemini-pro-vision')
+        # [수정됨] 최신 Flash 모델 대신, 구형 버전에서도 100% 작동하는 'pro-vision' 모델 사용
+        # 이 모델은 업데이트를 안 해도 작동합니다.
+        model = genai.GenerativeModel('gemini-pro-vision')
 
         system_prompt = """
         당신은 샌드위치 판넬 발주서 분석 전문가입니다.
@@ -98,7 +84,9 @@ def analyze_image(image, prompt_user):
             return []
             
     except Exception as e:
-        st.error(f"분석 중 오류 발생: {e}")
+        # 에러 발생 시 사용자에게 친절하게 안내
+        st.error(f"분석 오류: {e}")
+        st.warning("팁: 만약 '404 model not found'가 계속 뜨면 requirements.txt 파일을 확인해주세요.")
         return []
 
 # ==========================================
@@ -144,17 +132,16 @@ if menu == "1. 수주/발주 관리 (AI)":
         if st.button("➕ 초기화"):
             reset_session()
             
-    # [중요] 경고 문구 추가 (최상단)
-    st.error("🚨 [필독] AI는 업무 보조 도구입니다. 인식된 결과에 오류가 있을 수 있으므로, 담당자는 반드시 '2차 검수'를 진행하셔야 합니다.")
+    # [중요] 경고 문구 (요청하신 내용 반영)
+    st.error("🚨 [필독] AI는 업무 보조 도구입니다. 결과에 오류가 있을 수 있으므로, 담당자는 반드시 '2차 검수'를 진행하셔야 합니다.")
 
-    # 본문 (2단 레이아웃)
+    # 본문
     col1, col2 = st.columns([1, 1.5], gap="large")
     
     with col1:
         st.subheader("1. 주문서 업로드")
         client = st.text_input("거래처명", placeholder="예: 화성 금곡동")
         
-        # 파일 업로더
         uploaded_file = st.file_uploader("📷 주문서 사진 (JPG/PNG)", type=['png', 'jpg', 'jpeg'])
         memo = st.text_area("비고 (선택사항)", height=100)
         
@@ -180,7 +167,6 @@ if menu == "1. 수주/발주 관리 (AI)":
             st.success(f"✅ 분석 완료! ({len(df)}건)")
             edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
             
-            # 엑셀 다운로드
             csv = edited_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button("💾 엑셀 다운로드", csv, "order.csv", "text/csv")
         else:
