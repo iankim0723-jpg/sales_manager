@@ -77,7 +77,8 @@ def analyze_image(image, prompt_text=""):
     """Gemini AI에게 이미지를 보내고 표 데이터를 받아오는 함수"""
     try:
         genai.configure(api_key=FIXED_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+       # 추천 1: 버전 번호를 명시하기
+model = genai.GenerativeModel('gemini-1.5-flash-001')
         
         # AI에게 주는 강력한 명령 (프롬프트)
         system_prompt = """
@@ -227,3 +228,4 @@ if menu == "1. 수주/발주 관리 (AI)":
 
 else:
     st.info(f"{menu} 메뉴는 현재 개발 중입니다.")
+
